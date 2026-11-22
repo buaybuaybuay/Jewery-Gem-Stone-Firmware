@@ -15,6 +15,9 @@
 // power supply, servo model, stop behavior, and GPIO have been verified.
 namespace {
 constexpr char FIRMWARE_VERSION[] = "0.1.0";
+constexpr char MODULE_MODEL[] = "ESP32-S3-WROOM-1";
+constexpr char MODULE_VARIANT[] = "N16R8";
+constexpr char BOARD_PROFILE[] = "custom-esp32-s3-wroom-1-n16r8";
 constexpr bool REMOTE_CONTROL_ENABLED = false;
 constexpr bool MOTOR_OUTPUT_ENABLED = false;
 constexpr int SERVO_PIN = -1;               // Set only after wiring is verified.
@@ -152,16 +155,20 @@ void readSerialCommands() {
     Serial.printf("{\"event\":\"identify\",\"protocolVersion\":1,"
       "\"chipModel\":\"%s\",\"chipRevision\":%u,\"chipCores\":%u,"
       "\"flashBytes\":%u,\"psramBytes\":%u,"
-      "\"boardProfile\":\"esp32-s3-devkitc-1\",\"firmware\":\"%s\"}\n",
+      "\"moduleModel\":\"%s\",\"moduleVariant\":\"%s\","
+      "\"boardProfile\":\"%s\",\"firmware\":\"%s\"}\n",
       ESP.getChipModel(), (unsigned)ESP.getChipRevision(),
       (unsigned)ESP.getChipCores(), (unsigned)ESP.getFlashChipSize(),
-      (unsigned)ESP.getPsramSize(), FIRMWARE_VERSION);
+      (unsigned)ESP.getPsramSize(), MODULE_MODEL, MODULE_VARIANT,
+      BOARD_PROFILE, FIRMWARE_VERSION);
   } else if (command.equalsIgnoreCase("STATUS")) {
     Serial.printf("{\"event\":\"status\",\"firmware\":\"%s\","
-      "\"chipModel\":\"%s\",\"boardProfile\":\"esp32-s3-devkitc-1\","
+      "\"chipModel\":\"%s\",\"moduleModel\":\"%s\","
+      "\"moduleVariant\":\"%s\",\"boardProfile\":\"%s\","
       "\"wifiConnected\":%s,\"motorReady\":%s,"
       "\"remoteControlEnabled\":%s,\"motorOutputEnabled\":%s}\n",
-      FIRMWARE_VERSION, ESP.getChipModel(),
+      FIRMWARE_VERSION, ESP.getChipModel(), MODULE_MODEL, MODULE_VARIANT,
+      BOARD_PROFILE,
       WiFi.status() == WL_CONNECTED ? "true" : "false",
       motorReady ? "true" : "false",
       remoteControlReady ? "true" : "false",
