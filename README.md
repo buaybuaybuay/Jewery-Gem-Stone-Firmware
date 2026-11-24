@@ -55,6 +55,23 @@ Firmware ใช้ Arduino framework และ HTTPS polling ไปยัง Clo
 6. ตั้งค่า GPIO และ profile servo หลังตรวจ wiring/แหล่งจ่ายไฟจริงเท่านั้น.
 7. ทดสอบ Serial ด้วย `IDENTIFY`, `STATUS`, `STOP` ที่ 115200 baud.
 
+## จำลองบอร์ดด้วย Wokwi ใน VS Code
+
+1. ติดตั้งส่วนขยาย **Wokwi Simulator** (`wokwi.wokwi-vscode`) ใน VS Code.
+2. Build โปรไฟล์จำลองด้วย `pio run -e wokwi`.
+3. กด `F1` แล้วเลือก **Wokwi: Start Simulator**.
+4. ใช้ Serial Monitor ของ Wokwi ส่ง `IDENTIFY`, `STATUS` หรือ `STOP` ที่ 115200 baud.
+
+Wokwi จำลองชิป ESP32-S3 และแสดงบอร์ดอ้างอิง ESP32-S3-DevKitC-1
+ไม่ใช่ภาพ PCB เฉพาะของโครงงาน และไม่ใช่การทดสอบวงจรจริง. แผนผังแสดง HC-SR04,
+Servo และปุ่ม MODE โดยใช้ GPIO1 (TRIG), GPIO17 (ECHO), GPIO18 (Servo) และ GPIO4
+(ปุ่ม) เป็นการต่อสมมติสำหรับภาพจำลองเท่านั้น ไม่ใช่ pinout ที่ยืนยันสำหรับ PCB จริง.
+โปรไฟล์ `wokwi` อ่าน HC-SR04 และกวาด Servo ไป-กลับเมื่อระยะไม่เกิน 50 ซม.
+ค่าเริ่มต้นคือ 40 ซม.; ปรับระยะโดยคลิกเซนเซอร์ และ Servo กลับตำแหน่งกลางเมื่อระยะเกิน
+55 ซม. ปุ่ม MODE เป็นเพียงส่วนประกอบในภาพและยังไม่ถูกอ่านโดยโค้ด.
+โปรไฟล์บอร์ดจริงยังปิดมอเตอร์และไม่กำหนด `SERVO_PIN`; การต่อขาในแผนผังเป็นสมมติ
+สำหรับซิมูเลชัน ห้ามนำไปต่อวงจรจริงโดยไม่ตรวจสอบก่อน.
+
 ## ตรวจสอบอัตโนมัติ
 
 GitHub Actions จะ build ด้วย PlatformIO ทุกครั้งที่ push หรือเปิด Pull Request

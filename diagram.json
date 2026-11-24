@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "author": "Jewery Gem Stone Firmware",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-s3-devkitc-1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-hc-sr04",
+      "id": "ultrasonic",
+      "top": 40,
+      "left": 300,
+      "attrs": {
+        "distance": "40"
+      }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "turntable",
+      "top": 230,
+      "left": 320,
+      "attrs": {
+        "horn": "single"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "mode",
+      "top": 430,
+      "left": 310,
+      "attrs": {
+        "color": "blue",
+        "label": "MODE"
+      }
+    }
+  ],
+  "connections": [
+    ["ultrasonic:VCC", "esp:5V", "red", []],
+    ["ultrasonic:GND", "esp:GND.1", "black", []],
+    ["ultrasonic:TRIG", "esp:1", "green", []],
+    ["ultrasonic:ECHO", "esp:17", "blue", []],
+    ["turntable:V+", "esp:5V", "red", []],
+    ["turntable:GND", "esp:GND.1", "black", []],
+    ["turntable:PWM", "esp:18", "orange", []],
+    ["mode:1.l", "esp:4", "green", []],
+    ["mode:2.l", "esp:GND.1", "black", []]
+  ]
+}
