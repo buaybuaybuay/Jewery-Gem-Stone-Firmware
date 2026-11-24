@@ -19,8 +19,18 @@ constexpr char MODULE_MODEL[] = "ESP32-S3-WROOM-1";
 constexpr char MODULE_VARIANT[] = "N16R8";
 constexpr char BOARD_PROFILE[] = "custom-esp32-s3-wroom-1-n16r8";
 constexpr bool REMOTE_CONTROL_ENABLED = false;
+#if defined(WOKWI_SIMULATION)
+constexpr bool MOTOR_OUTPUT_ENABLED = true;
+constexpr int SERVO_PIN = 18;
+constexpr int HC_SR04_TRIG_PIN = 1;
+constexpr int HC_SR04_ECHO_PIN = 17;
+constexpr int DETECTION_DISTANCE_CM = 50;
+constexpr uint32_t SERVO_PWM_RESOLUTION_BITS = 14;
+constexpr uint32_t SERVO_PWM_MAX_DUTY = (1UL << SERVO_PWM_RESOLUTION_BITS) - 1;
+#else
 constexpr bool MOTOR_OUTPUT_ENABLED = false;
 constexpr int SERVO_PIN = -1;               // Set only after wiring is verified.
+#endif
 constexpr int SERVO_STOP_US = 1500;         // Calibrate for the actual servo.
 constexpr int SERVO_ROTATE_US = 1600;       // Calibrate for the actual servo.
 constexpr uint32_t SERVO_ROTATION_MS = 1000; // Not a verified 360-degree turn.
@@ -35,6 +45,63 @@ uint32_t rotationStartedAt = 0, lastHeartbeatAt = 0;
 uint32_t lastCommandPollAt = 0, lastWifiAttemptAt = 0;
 String activeCommandId;
 
+#if defined(WOKWI_SIMULATION)
+bool personDetected = false;
+bool servoIncreasing = true;
+int servoAngle = 90;
+bool servoPwmReady = false;
+uint32_t lastDistanceReadAt = 0, lastServoStepAt = 0, lastDistanceLogAt = 0;
+
+void writeWokwiServoAngle(int angle) {
+  if (!servoPwmReady) return;
+  uint32_t pulseUs = 500 + (2000UL * angle) / 180;
+  uint32_t duty = (pulseUs * SERVO_PWM_MAX_DUTY) / 20000UL;
+  ledcWrite(SERVO_PIN, duty);
+}
+
+int measureDistanceCm() {
+  digitalWrite(HC_SR04_TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(HC_SR04_TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(HC_SR04_TRIG_PIN, LOW);
+  unsigned long duration = pulseIn(HC_SR04_ECHO_PIN, HIGH, 30000UL);
+  return duration ? duration / 58 : 401;
+}
+
+void updateWokwiSimulation() {
+  uint32_t now = millis();
+  if (now - lastDistanceReadAt >= 100) {
+    lastDistanceReadAt = now;
+    int distanceCm = measureDistanceCm();
+    if (!personDetected && distanceCm <= DETECTION_DISTANCE_CM) {
+      personDetected = true;
+      Serial.printf("{\"event\":\"person_detected\",\"distanceCm\":%d}\n", distanceCm);
+    } else if (personDetected && distanceCm > DETECTION_DISTANCE_CM + 5) {
+      personDetected = false;
+      servoAngle = 90;
+      writeWokwiServoAngle(servoAngle);
+      Serial.printf("{\"event\":\"person_left\",\"distanceCm\":%d}\n", distanceCm);
+    }
+    if (now - lastDistanceLogAt >= 500) {
+      lastDistanceLogAt = now;
+      Serial.printf("{\"event\":\"distance\",\"distanceCm\":%d}\n", distanceCm);
+    }
+  }
+
+  if (!personDetected || now - lastServoStepAt < 20) return;
+  lastServoStepAt = now;
+  if (servoIncreasing) {
+    if (servoAngle >= 180) servoIncreasing = false;
+    else ++servoAngle;
+  } else {
+    if (servoAngle <= 0) servoIncreasing = true;
+    else --servoAngle;
+  }
+  writeWokwiServoAngle(servoAngle);
+}
+#endif
+
 bool secretsConfigured() {
   return strlen(WIFI_SSID) && strlen(WIFI_PASSWORD) &&
          strlen(WORKER_BASE_URL) && strlen(DEVICE_TOKEN) &&
@@ -42,8 +109,14 @@ bool secretsConfigured() {
 }
 void reportCommandResult(const String&, const char*, const char*);
 void stopMotor() {
-  if (MOTOR_OUTPUT_ENABLED && turntableServo.attached())
+  if (MOTOR_OUTPUT_ENABLED) {
+#if defined(WOKWI_SIMULATION)
+    writeWokwiServoAngle(90);
+#else
+    if (turntableServo.attached())
     turntableServo.writeMicroseconds(SERVO_STOP_US);
+#endif
+  }
   rotationActive = false;
 }
 void startRotation(const String& id) {
@@ -187,6 +260,19 @@ void readSerialCommands() {
 
 void setup() {
   Serial.begin(115200); Serial.setTimeout(50); delay(300);
+#if defined(WOKWI_SIMULATION)
+  pinMode(HC_SR04_TRIG_PIN, OUTPUT);
+  pinMode(HC_SR04_ECHO_PIN, INPUT);
+  digitalWrite(HC_SR04_TRIG_PIN, LOW);
+  servoPwmReady = ledcAttach(SERVO_PIN, 50, SERVO_PWM_RESOLUTION_BITS);
+  motorReady = servoPwmReady;
+  if (motorReady) {
+    writeWokwiServoAngle(servoAngle);
+    Serial.println("{\"event\":\"wokwi_servo_pwm_ready\",\"gpio\":18}");
+  } else {
+    Serial.println("{\"error\":\"wokwi_servo_pwm_attach_failed\",\"gpio\":18}");
+  }
+#else
   if (MOTOR_OUTPUT_ENABLED && SERVO_PIN >= 0) {
     turntableServo.setPeriodHertz(50);
     turntableServo.attach(SERVO_PIN, 1000, 2000);
@@ -194,17 +280,28 @@ void setup() {
     motorReady = turntableServo.attached() && SERVO_ROTATION_MS > 0 &&
                  SERVO_ROTATION_MS <= MAX_ROTATION_MS;
   }
+#endif
   remoteControlReady = REMOTE_CONTROL_ENABLED && secretsConfigured();
   if (remoteControlReady) connectWifi();
   Serial.printf("{\"event\":\"boot\",\"firmware\":\"%s\","
     "\"motorOutputEnabled\":%s,\"remoteControlEnabled\":%s}\n",
     FIRMWARE_VERSION, MOTOR_OUTPUT_ENABLED ? "true" : "false",
     remoteControlReady ? "true" : "false");
+#if defined(WOKWI_SIMULATION)
+  if (!motorReady)
+    Serial.println("{\"error\":\"wokwi_servo_attach_failed\"}");
+#endif
 }
 void loop() {
   readSerialCommands();
   serviceMotor();
-  if (!remoteControlReady) return;
+#if defined(WOKWI_SIMULATION)
+  updateWokwiSimulation();
+#endif
+  if (!remoteControlReady) {
+    delay(10);
+    return;
+  }
   connectWifi(); sendHeartbeat(); pollCommand();
   delay(10);
 }
